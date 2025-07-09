@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: orimi-merchen-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    env_file:
+      - .env
+
+
+  bot:
+    build: .
+    container_name: orimi-merchen
+    depends_on:
+      - redis
+    env_file:
+      - .env
