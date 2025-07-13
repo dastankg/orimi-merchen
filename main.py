@@ -8,6 +8,7 @@ from config.config import load_config
 from handlers.user_handlers import router as user_router
 from keyboards.menu import set_menu
 from services.logger import logger
+from services.notifications import setup_scheduler
 
 config = load_config()
 
@@ -22,6 +23,8 @@ async def main():
     await set_menu(bot)
     dp = Dispatcher()
     dp.include_router(user_router)
+    scheduler = setup_scheduler(bot)
+    scheduler.start()
     try:
         logger.info("Bot is starting")
         await bot.delete_webhook(drop_pending_updates=True)
