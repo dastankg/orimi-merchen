@@ -73,36 +73,30 @@ def get_photo_keyboard() -> ReplyKeyboardMarkup:
 
 
 async def get_dmp_brands_keyboard(brand_type: str) -> ReplyKeyboardMarkup:
-    """
-    Создает клавиатуру для выбора брендов ДМП
 
-    Args:
-        brand_type: "orimi" для брендов ОРИМИ или "competitor" для конкурентов
-
-    Returns:
-        ReplyKeyboardMarkup: Клавиатура с кнопками брендов
-    """
 
     if brand_type == "orimi":
-        # Бренды ОРИМИ
         brands = [
             "Tess",
+            "Гринф",
+            "ЖН",
+            "Шах",
         ]
     elif brand_type == "competitor":
-        # Бренды конкурентов
         brands = [
             "Beta",
+            "Пиала",
+            "Ахмад",
+            "Jacobs",
+            "Nestle",
         ]
     else:
-        # Если передан неизвестный тип, возвращаем пустую клавиатуру
         brands = []
 
-    # Создаем кнопки
     buttons = []
     for brand in brands:
         buttons.append([KeyboardButton(text=brand)])
 
-    # Добавляем кнопку "Назад"
     buttons.append([KeyboardButton(text="🔙 Назад")])
 
     keyboard = ReplyKeyboardMarkup(
