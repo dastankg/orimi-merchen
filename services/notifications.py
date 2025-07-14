@@ -9,7 +9,7 @@ from services.logger import logger
 
 
 async def send_daily_plans_post_request():
-    api_url = f"{os.getenv('WEB_SERVICE_URL')}/api/daily-plans/"
+    api_url = f"{os.getenv('WEB_SERVICE_URL')}/api/record-daily-plans/"
 
     try:
         async with aiohttp.ClientSession() as session:
@@ -31,7 +31,7 @@ def setup_scheduler(bot):
 
     scheduler.add_job(
         send_daily_plans_post_request,
-        CronTrigger(hour="17", minute="30"),
+        CronTrigger(hour="17", minute="40"),
     )
 
     logger.info("Планировщик настроен для ежемесячных уведомлений и ежедневной отправки планов")
