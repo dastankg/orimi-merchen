@@ -81,6 +81,8 @@ async def get_dmp_brands_keyboard(brand_type: str) -> ReplyKeyboardMarkup:
             "Гринф",
             "ЖН",
             "Шах",
+            "Jardin",
+            "Жокей"
         ]
     elif brand_type == "competitor":
         brands = [

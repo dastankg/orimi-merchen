@@ -31,7 +31,7 @@ def setup_scheduler(bot):
 
     scheduler.add_job(
         send_daily_plans_post_request,
-        CronTrigger(hour="17", minute="40"),
+        CronTrigger(hour="13", minute="30"),
     )
 
     logger.info("Планировщик настроен для ежемесячных уведомлений и ежедневной отправки планов")
