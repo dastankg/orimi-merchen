@@ -244,7 +244,7 @@ def check_photo_creation_time(file_path):
             time_diff = current_time - photo_time
 
             logger.info(f"HEIC: время фото={photo_time}, текущее время={current_time}, разница={time_diff}")
-            result = time_diff <= timedelta(minutes=5)
+            result = time_diff <= timedelta(minutes=10)
             logger.info(f"Результат проверки времени HEIC: {result}")
             return result
 
@@ -270,7 +270,7 @@ def check_photo_creation_time(file_path):
                     time_diff = current_time - photo_time
 
                     logger.info(f"EXIF: время фото={photo_time}, текущее время={current_time}, разница={time_diff}")
-                    result = time_diff <= timedelta(minutes=5)
+                    result = time_diff <= timedelta(minutes=10)
                     logger.info(f"Результат проверки времени EXIF: {result}")
                     return result
                 else:
@@ -321,7 +321,7 @@ async def download_file(file_url: str, filename: str):
                 if os.path.exists(save_path):
                     os.remove(save_path)
                     logger.info(f"Удален невалидный файл: {save_path}")
-                raise Exception("Фото не содержит необходимые метаданные или было сделано более 5 минут назад.")
+                raise Exception("Фото не содержит необходимые метаданные или было сделано более 10 минут назад.")
 
             if file_extension in [".heic", ".heif"]:
                 logger.info("Конвертация HEIC в JPEG")
