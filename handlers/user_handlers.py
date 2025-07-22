@@ -586,12 +586,8 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
             error_message = str(e)
             logger.error(f"Ошибка при обработке файла пользователя {user_id}: {error_message}")
 
-            if "более 5 минут назад" in error_message:
-                error_text = "❌ Фото сделано более 5 минут назад. Сделайте свежее фото."
-            elif "EXIF данные отсутствуют" in error_message or "метаданные отсутствуют" in error_message:
-                error_text = "❌ Фото не содержит метаданные. Сделайте фото через камеру телефона."
-            else:
-                error_text = "❌ Ошибка при сохранении файла."
+
+            error_text = "❌ Фото сделано более 10 минут назад. Сделайте свежее фото."
 
             await bot.edit_message_text(
                 error_text,

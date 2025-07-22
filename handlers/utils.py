@@ -253,29 +253,39 @@ def check_photo_creation_time(file_path):
             try:
                 img = Image.open(file_path)
 
-                if not hasattr(img, "_getexif") or not img._getexif():
+                if not img.info.get("exif"):
                     logger.warning(f"EXIF данные отсутствуют в изображении: {file_path}")
                     return False
 
                 exif_dict = piexif.load(img.info["exif"])
+                date_time_str = None
 
-                if "0th" in exif_dict and piexif.ImageIFD.DateTime in exif_dict["0th"]:
+                if "Exif" in exif_dict and piexif.ExifIFD.DateTimeOriginal in exif_dict["Exif"]:
+                    date_time_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeOriginal].decode("utf-8")
+                    logger.info(f"Найдено DateTimeOriginal в Exif секции: {date_time_str}")
+
+                elif "Exif" in exif_dict and piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]:
+                    date_time_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode("utf-8")
+                    logger.info(f"Найдено DateTimeDigitized в Exif секции: {date_time_str}")
+
+                elif "0th" in exif_dict and piexif.ImageIFD.DateTime in exif_dict["0th"]:
                     date_time_str = exif_dict["0th"][piexif.ImageIFD.DateTime].decode("utf-8")
-                    logger.info(f"Найдено время создания в EXIF: {date_time_str}")
+                    logger.info(f"Найдено DateTime в 0th секции: {date_time_str}")
 
-                    photo_time_naive = datetime.strptime(date_time_str, "%Y:%m:%d %H:%M:%S")
-                    photo_time = user_timezone.localize(photo_time_naive)
-
-                    current_time = datetime.now(user_timezone)
-                    time_diff = current_time - photo_time
-
-                    logger.info(f"EXIF: время фото={photo_time}, текущее время={current_time}, разница={time_diff}")
-                    result = time_diff <= timedelta(minutes=10)
-                    logger.info(f"Результат проверки времени EXIF: {result}")
-                    return result
-                else:
+                if not date_time_str:
                     logger.warning(f"Данные о времени создания отсутствуют в EXIF: {file_path}")
                     return False
+
+                photo_time_naive = datetime.strptime(date_time_str, "%Y:%m:%d %H:%M:%S")
+                photo_time = user_timezone.localize(photo_time_naive)
+
+                current_time = datetime.now(user_timezone)
+                time_diff = current_time - photo_time
+
+                logger.info(f"EXIF: время фото={photo_time}, текущее время={current_time}, разница={time_diff}")
+                result = time_diff <= timedelta(minutes=10)
+                logger.info(f"Результат проверки времени EXIF: {result}")
+                return result
 
             except Exception as e:
                 logger.warning(f"Ошибка при чтении EXIF данных: {e}")
