@@ -290,7 +290,7 @@ async def handle_location(message: Message, state: FSMContext):
             await state.set_state(UserState.waiting_for_type_photo)
             logger.info(f"Пользователь {user_id} переведен в состояние выбора типа фото")
             await message.answer(
-                "📍 Геолокация получена!\n\nТеперь выберите тип фото.",
+                "📍 Геолокация принята!\n\nТеперь выберите тип фото.",
                 reply_markup=get_photo_type_keyboard(),
             )
         else:

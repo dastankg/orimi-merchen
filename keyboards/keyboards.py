@@ -18,7 +18,7 @@ def get_main_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [
-                KeyboardButton(text="📷 Загрузить фото"),
+                KeyboardButton(text="🏪 Выбрать маркет"),
                 KeyboardButton(text="👤 Мой профиль"),
                 KeyboardButton(text="❓ Помощь"),
             ],
