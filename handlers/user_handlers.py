@@ -443,7 +443,7 @@ async def handle_competitor_brand(message: Message, state: FSMContext):
 
     await message.answer(
         f"📋 Выбран бренд конкурента: {competitor_brand}\n\n"
-        "Введите количество товаров конкурентов:",
+        "Введите количество ДМП конкурентов:",
         reply_markup=get_back_keyboard(),
     )
 
