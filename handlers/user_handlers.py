@@ -23,6 +23,7 @@ from handlers.utils import (
 from keyboards.keyboards import (
     get_back_keyboard,
     get_contact_keyboard,
+    get_continue_in_shop_keyboard,
     get_dmp_brands_keyboard,
     get_location_keyboard,
     get_main_keyboard,
@@ -68,16 +69,25 @@ async def check_auth(message: Message, state: FSMContext) -> bool:
     return True
 
 
-async def reset_to_main(message: Message, state: FSMContext, error_msg: str = None):
+async def reset_to_main(message: Message, state: FSMContext, error_msg: str = None, keep_shop: bool = False):
     user_id = message.from_user.id
-    logger.info(f"Сброс состояния в главное меню для пользователя {user_id}: {error_msg}")
+    logger.info(f"Сброс состояния в главное меню для пользователя {user_id}: {error_msg}, keep_shop={keep_shop}")
 
     if await check_auth(message, state):
         await state.set_state(UserState.authorized)
-        await state.update_data(location=None, type_photo=None, shop_name=None,
-                                dmp_brand=None, competitor_brand=None)
+        
+        data = await state.get_data()
+        current_shop = data.get("shop_name") if keep_shop else None
+        
+        await state.update_data(
+            location=None, 
+            type_photo=None, 
+            shop_name=current_shop,
+            dmp_brand=None, 
+            competitor_brand=None
+        )
         msg = error_msg or "Возвращаемся в главное меню."
-        logger.info(f"Состояние сброшено для пользователя {user_id}")
+        logger.info(f"Состояние сброшено для пользователя {user_id}, магазин сохранен: {current_shop}")
         await message.answer(msg, reply_markup=get_main_keyboard())
 
 
@@ -202,6 +212,45 @@ async def handle_upload_photo(message: Message, state: FSMContext):
 
     await state.set_state(UserState.waiting_for_shopName)
     logger.info(f"Пользователь {user_id} переведен в состояние ожидания названия магазина")
+    await schedule(message)
+
+
+@router.message(F.text == "📷 Продолжить в этом магазине")
+async def handle_continue_in_shop(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    logger.info(f"Пользователь {user_id} хочет продолжить в текущем магазине")
+
+    if not await check_auth(message, state):
+        return
+
+    data = await state.get_data()
+    current_shop = data.get("shop_name")
+    
+    if not current_shop:
+        logger.warning(f"У пользователя {user_id} нет сохраненного магазина")
+        await reset_to_main(message, state, "Сначала выберите магазин.")
+        return
+
+    await state.set_state(UserState.waiting_for_location)
+    logger.info(f"Пользователь {user_id} продолжает работу в магазине '{current_shop}'")
+
+    await message.answer(
+        f"Продолжаем работу в магазине '{current_shop}'.\nТеперь отправьте геолокацию.",
+        reply_markup=get_location_keyboard(),
+    )
+
+
+@router.message(F.text == "🏪 Выбрать другой магазин")
+async def handle_choose_another_shop(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    logger.info(f"Пользователь {user_id} хочет выбрать другой магазин")
+
+    if not await check_auth(message, state):
+        return
+
+    await state.set_state(UserState.waiting_for_shopName)
+    await state.update_data(shop_name=None)
+    logger.info(f"Пользователь {user_id} переведен в состояние выбора нового магазина")
     await schedule(message)
 
 
@@ -501,7 +550,14 @@ async def handle_competitor_count_after_brand(message: Message, state: FSMContex
         )
 
         logger.info(f"Результат сохранения данных конкурента для пользователя {user_id}: {result}")
-        await reset_to_main(message, state, "Данные успешно сохранены!")
+        
+        current_shop = state_data.get("shop_name")
+        await reset_to_main(message, state, keep_shop=True)
+        
+        await message.answer(
+            f"Данные успешно сохранены!\n\nХотите продолжить загрузку в магазине '{current_shop}' или выбрать другой?",
+            reply_markup=get_continue_in_shop_keyboard()
+        )
 
     except Exception as e:
         logger.error(f"Ошибка при сохранении данных конкурента для пользователя {user_id}: {e}")
@@ -577,8 +633,13 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
                 message_id=status_message.message_id,
             )
 
-            await reset_to_main(message, state)
-            await message.answer("Хотите загрузить еще фото?", reply_markup=get_main_keyboard())
+            current_shop = state_data.get("shop_name")
+            await reset_to_main(message, state, keep_shop=True)
+            
+            await message.answer(
+                f"Хотите продолжить загрузку фото в магазине '{current_shop}' или выбрать другой?",
+                reply_markup=get_continue_in_shop_keyboard()
+            )
 
         except Exception as e:
             error_message = str(e)
