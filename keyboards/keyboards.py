@@ -106,3 +106,14 @@ async def get_dmp_brands_keyboard(brand_type: str) -> ReplyKeyboardMarkup:
     )
 
     return keyboard
+
+
+def get_continue_in_shop_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📷 Продолжить в этом магазине")],
+            [KeyboardButton(text="🏪 Выбрать другой магазин")],
+            [KeyboardButton(text="👤 Мой профиль"), KeyboardButton(text="❓ Помощь")],
+        ],
+        resize_keyboard=True,
+    )
