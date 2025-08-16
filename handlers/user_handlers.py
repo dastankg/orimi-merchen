@@ -225,19 +225,27 @@ async def handle_continue_in_shop(message: Message, state: FSMContext):
 
     data = await state.get_data()
     current_shop = data.get("shop_name")
+    current_location = data.get("location")
     
     if not current_shop:
         logger.warning(f"У пользователя {user_id} нет сохраненного магазина")
         await reset_to_main(message, state, "Сначала выберите магазин.")
         return
 
-    await state.set_state(UserState.waiting_for_location)
-    logger.info(f"Пользователь {user_id} продолжает работу в магазине '{current_shop}'")
-
-    await message.answer(
-        f"Продолжаем работу в магазине '{current_shop}'.\nТеперь отправьте геолокацию.",
-        reply_markup=get_location_keyboard(),
-    )
+    if current_location and current_location.get("latitude") and current_location.get("longitude"):
+        logger.info(f"Пользователь {user_id} продолжает работу в магазине '{current_shop}' с сохраненной геолокацией")
+        await state.set_state(UserState.waiting_for_type_photo)
+        await message.answer(
+            f"Продолжаем работу в магазине '{current_shop}'.\nВыберите тип фото:",
+            reply_markup=get_photo_type_keyboard(),
+        )
+    else:
+        await state.set_state(UserState.waiting_for_location)
+        logger.info(f"Пользователь {user_id} продолжает работу в магазине '{current_shop}', требуется геолокация")
+        await message.answer(
+            f"Продолжаем работу в магазине '{current_shop}'.\nТеперь отправьте геолокацию.",
+            reply_markup=get_location_keyboard(),
+        )
 
 
 @router.message(F.text == "🏪 Выбрать другой магазин")
