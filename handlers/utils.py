@@ -32,7 +32,9 @@ async def get_store_id_by_name(name: str) -> dict[str, Any] | None:
                     logger.info(f"Успешно получен ID магазина для '{name}': {data}")
                     return data
                 else:
-                    logger.error(f"API запрос не удался со статусом {response.status} для магазина '{name}'")
+                    logger.error(
+                        f"API запрос не удался со статусом {response.status} для магазина '{name}'"
+                    )
                     return None
 
     except Exception as e:
@@ -51,7 +53,9 @@ async def get_user_profile(telegram_id: int) -> dict[str, Any] | None:
             logger.info(f"Профиль пользователя найден: {profile}")
             return profile
         else:
-            logger.warning(f"Профиль пользователя не найден для telegram_id: {telegram_id}")
+            logger.warning(
+                f"Профиль пользователя не найден для telegram_id: {telegram_id}"
+            )
             return None
     except Exception as e:
         logger.error(f"Ошибка при получении профиля пользователя {telegram_id}: {e}")
@@ -75,7 +79,9 @@ async def get_agent_by_phone(phone_number: str):
                     logger.info(f"Агент найден для номера {phone_number}: {data}")
                     return data
                 else:
-                    logger.error(f"API запрос не удался со статусом {response.status} для номера {phone_number}")
+                    logger.error(
+                        f"API запрос не удался со статусом {response.status} для номера {phone_number}"
+                    )
                     return []
     except Exception as e:
         logger.error(f"Ошибка в get_agent_by_phone для номера {phone_number}: {e}")
@@ -83,7 +89,9 @@ async def get_agent_by_phone(phone_number: str):
 
 
 async def save_user_profile(telegram_id: int, phone_number: str) -> bool:
-    logger.info(f"Сохранение профиля пользователя: telegram_id={telegram_id}, phone={phone_number}")
+    logger.info(
+        f"Сохранение профиля пользователя: telegram_id={telegram_id}, phone={phone_number}"
+    )
 
     if not phone_number.startswith("+"):
         phone_number = "+" + phone_number
@@ -103,7 +111,9 @@ async def save_user_profile(telegram_id: int, phone_number: str) -> bool:
                     logger.info(f"Агент успешно подтвержден для номера {phone_number}")
                     return True
                 else:
-                    logger.error(f"API запрос не удался со статусом {response.status} для номера {phone_number}")
+                    logger.error(
+                        f"API запрос не удался со статусом {response.status} для номера {phone_number}"
+                    )
                     return False
 
     except Exception as e:
@@ -137,12 +147,16 @@ async def schedule(message: Message):
                     return
 
                 if response.status != 200:
-                    logger.error(f"Ошибка при получении расписания: статус {response.status}")
+                    logger.error(
+                        f"Ошибка при получении расписания: статус {response.status}"
+                    )
                     await message.answer("Ошибка при получении расписания.")
                     return
 
                 stores = await response.json()
-                logger.info(f"Получено расписание для агента {phone_number}: {len(stores)} магазинов")
+                logger.info(
+                    f"Получено расписание для агента {phone_number}: {len(stores)} магазинов"
+                )
     except Exception as e:
         logger.error(f"Ошибка при запросе расписания для {phone_number}: {e}")
         await message.answer("Ошибка при получении расписания.")
@@ -180,7 +194,9 @@ async def schedule(message: Message):
 
 
 async def check_coordinates(latitude, longitude, shop_name):
-    logger.info(f"Проверка координат: lat={latitude}, lng={longitude}, shop={shop_name}")
+    logger.info(
+        f"Проверка координат: lat={latitude}, lng={longitude}, shop={shop_name}"
+    )
 
     try:
         url = f"{os.getenv('WEB_SERVICE_URL')}/api/check-address/{longitude}/{latitude}/{shop_name}/"
@@ -193,11 +209,15 @@ async def check_coordinates(latitude, longitude, shop_name):
                     success = data.get("success", False)
                     distance = data.get("distance")
 
-                    logger.info(f"Результат проверки координат: success={success}, distance={distance}")
+                    logger.info(
+                        f"Результат проверки координат: success={success}, distance={distance}"
+                    )
                     return success
                 else:
                     error_text = await response.text()
-                    logger.error(f"Ошибка проверки координат: статус {response.status}, ответ: {error_text}")
+                    logger.error(
+                        f"Ошибка проверки координат: статус {response.status}, ответ: {error_text}"
+                    )
                     return False
 
     except Exception as e:
@@ -228,10 +248,14 @@ def check_photo_creation_time(file_path):
                     break
 
             if not date_time_str:
-                logger.warning(f"Данные о времени создания отсутствуют в HEIC: {file_path}")
+                logger.warning(
+                    f"Данные о времени создания отсутствуют в HEIC: {file_path}"
+                )
                 return False
 
-            match = re.match(r"(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})", date_time_str)
+            match = re.match(
+                r"(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})", date_time_str
+            )
             if not match:
                 logger.warning(f"Неизвестный формат даты в HEIC: {date_time_str}")
                 return False
@@ -243,7 +267,9 @@ def check_photo_creation_time(file_path):
             current_time = datetime.now(user_timezone)
             time_diff = current_time - photo_time
 
-            logger.info(f"HEIC: время фото={photo_time}, текущее время={current_time}, разница={time_diff}")
+            logger.info(
+                f"HEIC: время фото={photo_time}, текущее время={current_time}, разница={time_diff}"
+            )
             result = time_diff <= timedelta(minutes=10)
             logger.info(f"Результат проверки времени HEIC: {result}")
             return result
@@ -254,26 +280,48 @@ def check_photo_creation_time(file_path):
                 img = Image.open(file_path)
 
                 if not img.info.get("exif"):
-                    logger.warning(f"EXIF данные отсутствуют в изображении: {file_path}")
+                    logger.warning(
+                        f"EXIF данные отсутствуют в изображении: {file_path}"
+                    )
                     return False
 
                 exif_dict = piexif.load(img.info["exif"])
                 date_time_str = None
 
-                if "Exif" in exif_dict and piexif.ExifIFD.DateTimeOriginal in exif_dict["Exif"]:
-                    date_time_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeOriginal].decode("utf-8")
-                    logger.info(f"Найдено DateTimeOriginal в Exif секции: {date_time_str}")
+                if (
+                    "Exif" in exif_dict
+                    and piexif.ExifIFD.DateTimeOriginal in exif_dict["Exif"]
+                ):
+                    date_time_str = exif_dict["Exif"][
+                        piexif.ExifIFD.DateTimeOriginal
+                    ].decode("utf-8")
+                    logger.info(
+                        f"Найдено DateTimeOriginal в Exif секции: {date_time_str}"
+                    )
 
-                elif "Exif" in exif_dict and piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]:
-                    date_time_str = exif_dict["Exif"][piexif.ExifIFD.DateTimeDigitized].decode("utf-8")
-                    logger.info(f"Найдено DateTimeDigitized в Exif секции: {date_time_str}")
+                elif (
+                    "Exif" in exif_dict
+                    and piexif.ExifIFD.DateTimeDigitized in exif_dict["Exif"]
+                ):
+                    date_time_str = exif_dict["Exif"][
+                        piexif.ExifIFD.DateTimeDigitized
+                    ].decode("utf-8")
+                    logger.info(
+                        f"Найдено DateTimeDigitized в Exif секции: {date_time_str}"
+                    )
 
-                elif "0th" in exif_dict and piexif.ImageIFD.DateTime in exif_dict["0th"]:
-                    date_time_str = exif_dict["0th"][piexif.ImageIFD.DateTime].decode("utf-8")
+                elif (
+                    "0th" in exif_dict and piexif.ImageIFD.DateTime in exif_dict["0th"]
+                ):
+                    date_time_str = exif_dict["0th"][piexif.ImageIFD.DateTime].decode(
+                        "utf-8"
+                    )
                     logger.info(f"Найдено DateTime в 0th секции: {date_time_str}")
 
                 if not date_time_str:
-                    logger.warning(f"Данные о времени создания отсутствуют в EXIF: {file_path}")
+                    logger.warning(
+                        f"Данные о времени создания отсутствуют в EXIF: {file_path}"
+                    )
                     return False
 
                 photo_time_naive = datetime.strptime(date_time_str, "%Y:%m:%d %H:%M:%S")
@@ -282,7 +330,9 @@ def check_photo_creation_time(file_path):
                 current_time = datetime.now(user_timezone)
                 time_diff = current_time - photo_time
 
-                logger.info(f"EXIF: время фото={photo_time}, текущее время={current_time}, разница={time_diff}")
+                logger.info(
+                    f"EXIF: время фото={photo_time}, текущее время={current_time}, разница={time_diff}"
+                )
                 result = time_diff <= timedelta(minutes=10)
                 logger.info(f"Результат проверки времени EXIF: {result}")
                 return result
@@ -331,7 +381,9 @@ async def download_file(file_url: str, filename: str):
                 if os.path.exists(save_path):
                     os.remove(save_path)
                     logger.info(f"Удален невалидный файл: {save_path}")
-                raise Exception("Фото не содержит необходимые метаданные или было сделано более 10 минут назад.")
+                raise Exception(
+                    "Фото не содержит необходимые метаданные или было сделано более 10 минут назад."
+                )
 
             if file_extension in [".heic", ".heif"]:
                 logger.info("Конвертация HEIC в JPEG")
@@ -355,7 +407,9 @@ def get_heic_metadata(file_path):
             subprocess.run(["exiftool", "-ver"], capture_output=True, check=True)
             logger.info("ExifTool найден и работает")
         except (subprocess.SubprocessError, FileNotFoundError):
-            logger.error("ExifTool не установлен. Установите с помощью 'sudo dnf install perl-Image-ExifTool'")
+            logger.error(
+                "ExifTool не установлен. Установите с помощью 'sudo dnf install perl-Image-ExifTool'"
+            )
             return None
 
         result = subprocess.run(
@@ -396,7 +450,9 @@ async def convert_heic_to_jpeg(heic_path):
             pillow_heif.register_heif_opener()
             with Image.open(heic_path) as img:
                 img.convert("RGB").save(jpeg_path, "JPEG", quality=95, optimize=True)
-            logger.info(f"HEIC успешно конвертирован через pillow-heif: {heic_path} -> {jpeg_path}")
+            logger.info(
+                f"HEIC успешно конвертирован через pillow-heif: {heic_path} -> {jpeg_path}"
+            )
 
         except (ImportError, Exception) as e:
             logger.warning(f"Pillow-heif не сработал: {e}. Пробуем ImageMagick...")
@@ -438,16 +494,20 @@ async def convert_heic_to_jpeg(heic_path):
 
 
 async def save_file_to_post(
-        id,
-        store_id,
-        relative_path,
-        latitude=None,
-        longitude=None,
-        type_photo=None,
-        dmp_type=None,
+    id,
+    store_id,
+    relative_path,
+    latitude=None,
+    longitude=None,
+    type_photo=None,
+    dmp_type=None,
 ):
-    logger.info(f"Сохранение файла в пост: id={id}, store_id={store_id}, path={relative_path}")
-    logger.info(f"Параметры: lat={latitude}, lng={longitude}, type={type_photo}, dmp_type={dmp_type}")
+    logger.info(
+        f"Сохранение файла в пост: id={id}, store_id={store_id}, path={relative_path}"
+    )
+    logger.info(
+        f"Параметры: lat={latitude}, lng={longitude}, type={type_photo}, dmp_type={dmp_type}"
+    )
 
     try:
         file_path = f"media/{relative_path}"
@@ -479,7 +539,9 @@ async def save_file_to_post(
 
                 async with session.post(api_url, data=form_data) as response:
                     response_text = await response.text()
-                    logger.info(f"Ответ API: статус={response.status}, текст={response_text}")
+                    logger.info(
+                        f"Ответ API: статус={response.status}, текст={response_text}"
+                    )
 
                     if os.path.exists(file_path):
                         os.remove(file_path)
@@ -489,10 +551,14 @@ async def save_file_to_post(
                         logger.info("Файл успешно загружен в пост")
                         return {
                             "success": True,
-                            "data": json.loads(response_text) if response_text else None,
+                            "data": json.loads(response_text)
+                            if response_text
+                            else None,
                         }
                     else:
-                        logger.error(f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}")
+                        logger.error(
+                            f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}"
+                        )
                         return {
                             "success": False,
                             "status": response.status,
@@ -507,12 +573,19 @@ async def save_file_to_post(
         return {"success": False, "error": str(e)}
 
 
-async def save_post_data(id,
-                         store_id,
-                         latitude=None, longitude=None, type_photo=None, brand_name=None, dmp_count=None
-                         ):
+async def save_post_data(
+    id,
+    store_id,
+    latitude=None,
+    longitude=None,
+    type_photo=None,
+    brand_name=None,
+    dmp_count=None,
+):
     logger.info(f"Сохранение данных поста: id={id}, store_id={store_id}")
-    logger.info(f"Параметры: lat={latitude}, lng={longitude}, type={type_photo}, brand={brand_name}, count={dmp_count}")
+    logger.info(
+        f"Параметры: lat={latitude}, lng={longitude}, type={type_photo}, brand={brand_name}, count={dmp_count}"
+    )
 
     try:
         api_url = f"{os.getenv('WEB_SERVICE_URL')}/api/photo-posts/create/"
@@ -533,10 +606,12 @@ async def save_post_data(id,
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                    api_url, json=data, headers={"Content-Type": "application/json"}
+                api_url, json=data, headers={"Content-Type": "application/json"}
             ) as response:
                 response_text = await response.text()
-                logger.info(f"Ответ API: статус={response.status}, текст={response_text}")
+                logger.info(
+                    f"Ответ API: статус={response.status}, текст={response_text}"
+                )
 
                 if response.status == 201:
                     logger.info("Данные поста успешно сохранены")
@@ -545,7 +620,9 @@ async def save_post_data(id,
                         "data": json.loads(response_text) if response_text else None,
                     }
                 else:
-                    logger.error(f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}")
+                    logger.error(
+                        f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}"
+                    )
                     return {
                         "success": False,
                         "status": response.status,
