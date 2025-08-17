@@ -1,7 +1,7 @@
 import os
 import uuid
-import aiohttp
 
+import aiohttp
 from aiogram import Bot, F, Router
 from aiogram.enums import ContentType
 from aiogram.filters import Command, CommandStart
@@ -9,16 +9,17 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from fsms.fsm import UserState
-from handlers.constants import POST_TYPE_CHOICES, ORIMI_BRANDS, COMPETITOR_BRANDS
+from handlers.constants import COMPETITOR_BRANDS, ORIMI_BRANDS, POST_TYPE_CHOICES
 from handlers.utils import (
     check_coordinates,
     download_file,
     get_agent_by_phone,
+    get_store_id_by_name,
     get_user_profile,
     save_file_to_post,
     save_post_data,
     save_user_profile,
-    schedule, get_store_id_by_name,
+    schedule,
 )
 from keyboards.keyboards import (
     get_back_keyboard,
@@ -52,7 +53,9 @@ async def check_auth(message: Message, state: FSMContext) -> bool:
     try:
         agent = await get_agent_by_phone(user["agent_number"])
         if not agent:
-            logger.warning(f"Агент с номером {user['agent_number']} не найден для пользователя {user_id}")
+            logger.warning(
+                f"Агент с номером {user['agent_number']} не найден для пользователя {user_id}"
+            )
             await message.answer(
                 "❌ Ваш номер не найден в системе. Обратитесь к администратору.",
                 reply_markup=get_contact_keyboard(),
@@ -60,7 +63,9 @@ async def check_auth(message: Message, state: FSMContext) -> bool:
             await state.set_state(UserState.unauthorized)
             return False
 
-        logger.info(f"Авторизация успешна для пользователя {user_id}, агент: {agent.get('id', 'unknown')}")
+        logger.info(
+            f"Авторизация успешна для пользователя {user_id}, агент: {agent.get('id', 'unknown')}"
+        )
     except Exception as e:
         logger.error(f"Ошибка при проверке агента для пользователя {user_id}: {e}")
         await state.set_state(UserState.unauthorized)
@@ -69,25 +74,32 @@ async def check_auth(message: Message, state: FSMContext) -> bool:
     return True
 
 
-async def reset_to_main(message: Message, state: FSMContext, error_msg: str = None, keep_shop: bool = False):
+async def reset_to_main(
+    message: Message, state: FSMContext, error_msg: str = None, keep_shop: bool = False
+):
     user_id = message.from_user.id
-    logger.info(f"Сброс состояния в главное меню для пользователя {user_id}: {error_msg}, keep_shop={keep_shop}")
+    logger.info(
+        f"Сброс состояния в главное меню для пользователя {user_id}: {error_msg}, keep_shop={keep_shop}"
+    )
 
     if await check_auth(message, state):
         await state.set_state(UserState.authorized)
-        
+
         data = await state.get_data()
         current_shop = data.get("shop_name") if keep_shop else None
-        
+        current_location = data.get("location") if keep_shop else None
+
         await state.update_data(
-            location=None, 
-            type_photo=None, 
+            location=current_location,
+            type_photo=None,
             shop_name=current_shop,
-            dmp_brand=None, 
-            competitor_brand=None
+            dmp_brand=None,
+            competitor_brand=None,
         )
         msg = error_msg or "Возвращаемся в главное меню."
-        logger.info(f"Состояние сброшено для пользователя {user_id}, магазин сохранен: {current_shop}")
+        logger.info(
+            f"Состояние сброшено для пользователя {user_id}, магазин сохранен: {current_shop}"
+        )
         await message.answer(msg, reply_markup=get_main_keyboard())
 
 
@@ -138,7 +150,9 @@ async def cmd_profile(message: Message, state: FSMContext):
         return
 
     user = await get_user_profile(user_id)
-    logger.info(f"Отображение профиля для пользователя {user_id}: {user['agent_number']}")
+    logger.info(
+        f"Отображение профиля для пользователя {user_id}: {user['agent_number']}"
+    )
 
     await message.answer(
         f"📱 Телефон: {user['agent_number']}",
@@ -155,7 +169,9 @@ async def handle_contact(message: Message, state: FSMContext):
     logger.info(f"Текущее состояние пользователя {user_id}: {current_state}")
 
     if current_state != UserState.unauthorized:
-        logger.warning(f"Пользователь {user_id} уже авторизован, контакт проигнорирован")
+        logger.warning(
+            f"Пользователь {user_id} уже авторизован, контакт проигнорирован"
+        )
         await message.answer("Вы уже авторизованы.", reply_markup=get_main_keyboard())
         return
 
@@ -172,7 +188,9 @@ async def handle_contact(message: Message, state: FSMContext):
         agent = await get_agent_by_phone(phone_number)
         await save_user_profile(user_id, phone_number)
         await state.update_data(phone=phone_number)
-        logger.info(f"Профиль сохранен для пользователя {user_id} с номером {phone_number}")
+        logger.info(
+            f"Профиль сохранен для пользователя {user_id} с номером {phone_number}"
+        )
 
         if agent:
             await state.set_state(UserState.authorized)
@@ -211,7 +229,9 @@ async def handle_upload_photo(message: Message, state: FSMContext):
         return
 
     await state.set_state(UserState.waiting_for_shopName)
-    logger.info(f"Пользователь {user_id} переведен в состояние ожидания названия магазина")
+    logger.info(
+        f"Пользователь {user_id} переведен в состояние ожидания названия магазина"
+    )
     await schedule(message)
 
 
@@ -226,14 +246,20 @@ async def handle_continue_in_shop(message: Message, state: FSMContext):
     data = await state.get_data()
     current_shop = data.get("shop_name")
     current_location = data.get("location")
-    
+
     if not current_shop:
         logger.warning(f"У пользователя {user_id} нет сохраненного магазина")
         await reset_to_main(message, state, "Сначала выберите магазин.")
         return
 
-    if current_location and current_location.get("latitude") and current_location.get("longitude"):
-        logger.info(f"Пользователь {user_id} продолжает работу в магазине '{current_shop}' с сохраненной геолокацией")
+    if (
+        current_location
+        and current_location.get("latitude") is not None
+        and current_location.get("longitude") is not None
+    ):
+        logger.info(
+            f"Пользователь {user_id} продолжает работу в магазине '{current_shop}' с сохраненной геолокацией"
+        )
         await state.set_state(UserState.waiting_for_type_photo)
         await message.answer(
             f"Продолжаем работу в магазине '{current_shop}'.\nВыберите тип фото:",
@@ -241,7 +267,9 @@ async def handle_continue_in_shop(message: Message, state: FSMContext):
         )
     else:
         await state.set_state(UserState.waiting_for_location)
-        logger.info(f"Пользователь {user_id} продолжает работу в магазине '{current_shop}', требуется геолокация")
+        logger.info(
+            f"Пользователь {user_id} продолжает работу в магазине '{current_shop}', требуется геолокация"
+        )
         await message.answer(
             f"Продолжаем работу в магазине '{current_shop}'.\nТеперь отправьте геолокацию.",
             reply_markup=get_location_keyboard(),
@@ -290,27 +318,39 @@ async def handle_shop_name(message: Message, state: FSMContext):
                 if response.status == 200:
                     stores = await response.json()
                     store_names = [store["name"] for store in stores] if stores else []
-                    logger.info(f"Доступные магазины для пользователя {user_id}: {store_names}")
+                    logger.info(
+                        f"Доступные магазины для пользователя {user_id}: {store_names}"
+                    )
 
                     if message.text not in store_names:
-                        logger.warning(f"Пользователь {user_id} выбрал недоступный магазин: {shop_name}")
+                        logger.warning(
+                            f"Пользователь {user_id} выбрал недоступный магазин: {shop_name}"
+                        )
                         await message.answer(
                             "Пожалуйста, выберите магазин из списка кнопок ниже:",
-                            reply_markup=message.reply_markup
+                            reply_markup=message.reply_markup,
                         )
                         return
                 else:
-                    logger.error(f"Ошибка при получении магазинов для пользователя {user_id}: статус {response.status}")
-                    await reset_to_main(message, state, "Ошибка при получении списка магазинов.")
+                    logger.error(
+                        f"Ошибка при получении магазинов для пользователя {user_id}: статус {response.status}"
+                    )
+                    await reset_to_main(
+                        message, state, "Ошибка при получении списка магазинов."
+                    )
                     return
     except Exception as e:
-        logger.error(f"Ошибка при проверке списка магазинов для пользователя {user_id}: {e}")
+        logger.error(
+            f"Ошибка при проверке списка магазинов для пользователя {user_id}: {e}"
+        )
         await reset_to_main(message, state, "Ошибка при проверке магазина.")
         return
 
     await state.update_data(shop_name=shop_name)
     await state.set_state(UserState.waiting_for_location)
-    logger.info(f"Магазин '{shop_name}' сохранен для пользователя {user_id}, ожидание геолокации")
+    logger.info(
+        f"Магазин '{shop_name}' сохранен для пользователя {user_id}, ожидание геолокации"
+    )
 
     await message.answer(
         f"Название магазина '{shop_name}' сохранено.\nТеперь отправьте геолокацию.",
@@ -323,7 +363,9 @@ async def handle_location(message: Message, state: FSMContext):
     user_id = message.from_user.id
     latitude = message.location.latitude
     longitude = message.location.longitude
-    logger.info(f"Получена геолокация от пользователя {user_id}: lat={latitude}, lng={longitude}")
+    logger.info(
+        f"Получена геолокация от пользователя {user_id}: lat={latitude}, lng={longitude}"
+    )
 
     if not await check_auth(message, state):
         return
@@ -345,7 +387,9 @@ async def handle_location(message: Message, state: FSMContext):
 
         if check:
             await state.set_state(UserState.waiting_for_type_photo)
-            logger.info(f"Пользователь {user_id} переведен в состояние выбора типа фото")
+            logger.info(
+                f"Пользователь {user_id} переведен в состояние выбора типа фото"
+            )
             await message.answer(
                 "📍 Геолокация получена!\n\nТеперь выберите тип фото.",
                 reply_markup=get_photo_type_keyboard(),
@@ -473,7 +517,9 @@ async def handle_competitor_brand(message: Message, state: FSMContext):
         return
 
     if message.text == "🔙 Назад":
-        logger.info(f"Пользователь {user_id} возвращается назад из выбора бренда конкурента")
+        logger.info(
+            f"Пользователь {user_id} возвращается назад из выбора бренда конкурента"
+        )
         await state.set_state(UserState.waiting_for_type_photo)
         await message.answer(
             "Возвращаемся к выбору типа фото.",
@@ -482,7 +528,9 @@ async def handle_competitor_brand(message: Message, state: FSMContext):
         return
 
     if message.text not in COMPETITOR_BRANDS:
-        logger.warning(f"Пользователь {user_id} выбрал неверный бренд конкурента: {brand}")
+        logger.warning(
+            f"Пользователь {user_id} выбрал неверный бренд конкурента: {brand}"
+        )
         brands_keyboard = await get_dmp_brands_keyboard("competitor")
         await message.answer(
             "❌ Неверный бренд!\n"
@@ -494,7 +542,9 @@ async def handle_competitor_brand(message: Message, state: FSMContext):
     competitor_brand = message.text
     await state.update_data(competitor_brand=competitor_brand)
     await state.set_state(UserState.waiting_for_competitor_count_after_brand)
-    logger.info(f"Бренд конкурента '{competitor_brand}' сохранен для пользователя {user_id}")
+    logger.info(
+        f"Бренд конкурента '{competitor_brand}' сохранен для пользователя {user_id}"
+    )
 
     await message.answer(
         f"📋 Выбран бренд конкурента: {competitor_brand}\n\n"
@@ -507,7 +557,9 @@ async def handle_competitor_brand(message: Message, state: FSMContext):
 async def handle_competitor_count_after_brand(message: Message, state: FSMContext):
     user_id = message.from_user.id
     count_text = message.text
-    logger.info(f"Получено количество товаров конкурентов от пользователя {user_id}: {count_text}")
+    logger.info(
+        f"Получено количество товаров конкурентов от пользователя {user_id}: {count_text}"
+    )
 
     if not await check_auth(message, state):
         return
@@ -539,10 +591,13 @@ async def handle_competitor_count_after_brand(message: Message, state: FSMContex
         store = await get_store_id_by_name(state_data["shop_name"])
 
         logger.info(
-            f"Сохранение данных конкурента для пользователя {user_id}: агент={agent.get('id')}, магазин={store.get('id') if store else None}, количество={cnt}")
+            f"Сохранение данных конкурента для пользователя {user_id}: агент={agent.get('id')}, магазин={store.get('id') if store else None}, количество={cnt}"
+        )
 
         if not store:
-            logger.error(f"Магазин '{state_data['shop_name']}' не найден для пользователя {user_id}")
+            logger.error(
+                f"Магазин '{state_data['shop_name']}' не найден для пользователя {user_id}"
+            )
             await reset_to_main(message, state, "Магазин не зарегистрирован.")
             return
 
@@ -557,18 +612,22 @@ async def handle_competitor_count_after_brand(message: Message, state: FSMContex
             cnt,
         )
 
-        logger.info(f"Результат сохранения данных конкурента для пользователя {user_id}: {result}")
-        
+        logger.info(
+            f"Результат сохранения данных конкурента для пользователя {user_id}: {result}"
+        )
+
         current_shop = state_data.get("shop_name")
         await reset_to_main(message, state, keep_shop=True)
-        
+
         await message.answer(
             f"Данные успешно сохранены!\n\nХотите продолжить загрузку в магазине '{current_shop}' или выбрать другой?",
-            reply_markup=get_continue_in_shop_keyboard()
+            reply_markup=get_continue_in_shop_keyboard(),
         )
 
     except Exception as e:
-        logger.error(f"Ошибка при сохранении данных конкурента для пользователя {user_id}: {e}")
+        logger.error(
+            f"Ошибка при сохранении данных конкурента для пользователя {user_id}: {e}"
+        )
         await reset_to_main(message, state, "Ошибка при сохранении данных.")
 
 
@@ -587,7 +646,9 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
         type_photo = state_data.get("type_photo")
         shop_name = state_data.get("shop_name")
 
-        logger.info(f"Данные для обработки файла пользователя {user_id}: магазин={shop_name}, тип={type_photo}")
+        logger.info(
+            f"Данные для обработки файла пользователя {user_id}: магазин={shop_name}, тип={type_photo}"
+        )
 
         if not location:
             logger.warning(f"Отсутствует геолокация для пользователя {user_id}")
@@ -599,10 +660,13 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
         store = await get_store_id_by_name(shop_name)
 
         logger.info(
-            f"Найден агент {agent.get('id')} и магазин {store.get('id') if store else None} для пользователя {user_id}")
+            f"Найден агент {agent.get('id')} и магазин {store.get('id') if store else None} для пользователя {user_id}"
+        )
 
         if not store:
-            logger.error(f"Магазин '{shop_name}' не зарегистрирован для пользователя {user_id}")
+            logger.error(
+                f"Магазин '{shop_name}' не зарегистрирован для пользователя {user_id}"
+            )
             await reset_to_main(message, state, "Магазин не зарегистрирован.")
             return
 
@@ -611,17 +675,23 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
         file = await bot.get_file(file_id)
         file_path = file.file_path
         file_name = (
-                document.file_name or f"{uuid.uuid4().hex}{os.path.splitext(file_path)[1]}"
+            document.file_name or f"{uuid.uuid4().hex}{os.path.splitext(file_path)[1]}"
         )
 
-        file_url = f"https://api.telegram.org/file/bot{os.getenv('SECRET_KEY')}/{file_path}"
-        logger.info(f"Обработка файла для пользователя {user_id}: {file_name}, размер: {document.file_size}")
+        file_url = (
+            f"https://api.telegram.org/file/bot{os.getenv('SECRET_KEY')}/{file_path}"
+        )
+        logger.info(
+            f"Обработка файла для пользователя {user_id}: {file_name}, размер: {document.file_size}"
+        )
 
         status_message = await message.answer("⏳ Загрузка файла...")
 
         try:
             relative_path = await download_file(file_url, file_name)
-            logger.info(f"Файл успешно скачан для пользователя {user_id}: {relative_path}")
+            logger.info(
+                f"Файл успешно скачан для пользователя {user_id}: {relative_path}"
+            )
 
             result = await save_file_to_post(
                 agent["id"],
@@ -630,10 +700,12 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
                 latitude=location["latitude"],
                 longitude=location["longitude"],
                 type_photo=type_photo,
-                dmp_type=state_data.get("dmp_brand")
+                dmp_type=state_data.get("dmp_brand"),
             )
 
-            logger.info(f"Результат сохранения файла для пользователя {user_id}: {result}")
+            logger.info(
+                f"Результат сохранения файла для пользователя {user_id}: {result}"
+            )
 
             await bot.edit_message_text(
                 "✅ Файл успешно сохранен",
@@ -643,16 +715,17 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
 
             current_shop = state_data.get("shop_name")
             await reset_to_main(message, state, keep_shop=True)
-            
+
             await message.answer(
                 f"Хотите продолжить загрузку фото в магазине '{current_shop}' или выбрать другой?",
-                reply_markup=get_continue_in_shop_keyboard()
+                reply_markup=get_continue_in_shop_keyboard(),
             )
 
         except Exception as e:
             error_message = str(e)
-            logger.error(f"Ошибка при обработке файла пользователя {user_id}: {error_message}")
-
+            logger.error(
+                f"Ошибка при обработке файла пользователя {user_id}: {error_message}"
+            )
 
             error_text = "❌ Фото сделано более 10 минут назад. Сделайте свежее фото."
 
@@ -664,14 +737,18 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
             await reset_to_main(message, state)
 
     except Exception as e:
-        logger.error(f"Критическая ошибка при обработке файла пользователя {user_id}: {e}")
+        logger.error(
+            f"Критическая ошибка при обработке файла пользователя {user_id}: {e}"
+        )
         await reset_to_main(message, state, "❗ Неизвестная ошибка.")
 
 
 @router.message(UserState.authorized)
 async def handle_authorized_commands(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    logger.info(f"Обработка команды в авторизованном состоянии от пользователя {user_id}: {message.text}")
+    logger.info(
+        f"Обработка команды в авторизованном состоянии от пользователя {user_id}: {message.text}"
+    )
 
     if not await check_auth(message, state):
         return
@@ -686,12 +763,22 @@ async def handle_authorized_commands(message: Message, state: FSMContext):
 async def unknown_message(message: Message, state: FSMContext):
     user_id = message.from_user.id
     current_state = await state.get_state()
-    logger.info(f"Неизвестное сообщение от пользователя {user_id} в состоянии {current_state}: {message.text}")
+    logger.info(
+        f"Неизвестное сообщение от пользователя {user_id} в состоянии {current_state}: {message.text}"
+    )
 
-    if current_state and current_state != UserState.unauthorized and current_state != UserState.authorized:
+    if (
+        current_state
+        and current_state != UserState.unauthorized
+        and current_state != UserState.authorized
+    ):
         if await check_auth(message, state):
-            logger.info(f"Операция прервана для пользователя {user_id}, возврат в главное меню")
-            await reset_to_main(message, state, "Операция прервана. Используйте кнопки меню.")
+            logger.info(
+                f"Операция прервана для пользователя {user_id}, возврат в главное меню"
+            )
+            await reset_to_main(
+                message, state, "Операция прервана. Используйте кнопки меню."
+            )
         return
 
     if await check_auth(message, state):
@@ -702,7 +789,9 @@ async def unknown_message(message: Message, state: FSMContext):
             reply_markup=get_main_keyboard(),
         )
     else:
-        logger.info(f"Неавторизованный пользователь {user_id} получил запрос на контакт")
+        logger.info(
+            f"Неавторизованный пользователь {user_id} получил запрос на контакт"
+        )
         await message.answer(
             "Для начала работы поделитесь контактом.",
             reply_markup=get_contact_keyboard(),

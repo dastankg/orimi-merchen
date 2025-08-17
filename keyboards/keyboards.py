@@ -73,17 +73,8 @@ def get_photo_keyboard() -> ReplyKeyboardMarkup:
 
 
 async def get_dmp_brands_keyboard(brand_type: str) -> ReplyKeyboardMarkup:
-
-
     if brand_type == "orimi":
-        brands = [
-            "Tess",
-            "Гринф",
-            "ЖН",
-            "Шах",
-            "Jardin",
-            "Жокей"
-        ]
+        brands = ["Tess", "Гринф", "ЖН", "Шах", "Jardin", "Жокей"]
     elif brand_type == "competitor":
         brands = [
             "Beta",
