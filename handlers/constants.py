@@ -7,12 +7,7 @@ POST_TYPE_CHOICES = [
     "ДМП_конкурент",
 ]
 
-ORIMI_BRANDS = [
-    "Tess",
-    "Гринф",
-    "ЖН",
-    "Шах",
-]
+ORIMI_BRANDS = ["Tess", "Гринф", "ЖН", "Шах", "Jardin", "Жокей"]
 
 COMPETITOR_BRANDS = [
     "Beta",
