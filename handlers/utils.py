@@ -6,7 +6,6 @@ import subprocess
 import uuid
 from datetime import datetime, timedelta
 from typing import Any
-
 import aiohttp
 import piexif
 import pillow_heif
