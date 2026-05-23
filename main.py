@@ -10,6 +10,7 @@ from aiogram.enums import ParseMode
 from config.config import load_config
 from handlers.user_handlers import router as user_router
 from keyboards.menu import set_menu
+from services.http_client import close_http_session
 from services.logger import logger
 from services.notifications import setup_scheduler
 
@@ -39,6 +40,7 @@ async def main():
         logger.error(f"Critical error: {e}")
     finally:
         logger.info("Bot stopped")
+        await close_http_session()
         await bot.session.close()
 
 

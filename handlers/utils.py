@@ -18,7 +18,10 @@ from asgiref.sync import sync_to_async
 from PIL import Image
 
 from config.redis_connect import redis_client
+from services.http_client import get_http_session
 from services.logger import logger
+
+AGENT_AUTH_CACHE_TTL_SECONDS = 60 * 60 * 2
 
 
 async def get_store_id_by_name(name: str) -> dict[str, Any] | None:
@@ -26,17 +29,17 @@ async def get_store_id_by_name(name: str) -> dict[str, Any] | None:
     api_url = f"{os.getenv('WEB_SERVICE_URL')}/api/store-id/{name}"
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(api_url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    logger.info(f"Успешно получен ID магазина для '{name}': {data}")
-                    return data
-                else:
-                    logger.error(
-                        f"API запрос не удался со статусом {response.status} для магазина '{name}'"
-                    )
-                    return None
+        session = await get_http_session()
+        async with session.get(api_url) as response:
+            if response.status == 200:
+                data = await response.json()
+                logger.info(f"Успешно получен ID магазина для '{name}': {data}")
+                return data
+            else:
+                logger.error(
+                    f"API запрос не удался со статусом {response.status} для магазина '{name}'"
+                )
+                return None
 
     except Exception as e:
         logger.error(f"Ошибка в get_store_id_by_name для '{name}': {e}")
@@ -63,6 +66,45 @@ async def get_user_profile(telegram_id: int) -> dict[str, Any] | None:
         return None
 
 
+async def get_cached_agent_auth(telegram_id: int, phone_number: str) -> dict[str, Any] | None:
+    key = f"agent_auth:{telegram_id}"
+
+    try:
+        data = await redis_client.get(key)
+        if not data:
+            return None
+
+        cached_agent = json.loads(data)
+        if cached_agent.get("agent_number") != phone_number:
+            return None
+
+        logger.info(f"Кэш авторизации агента найден для пользователя {telegram_id}")
+        return cached_agent
+    except Exception as e:
+        logger.error(f"Ошибка при получении кэша авторизации {telegram_id}: {e}")
+        return None
+
+
+async def cache_agent_auth(
+    telegram_id: int, phone_number: str, agent: dict[str, Any]
+) -> None:
+    key = f"agent_auth:{telegram_id}"
+    cached_agent = {
+        "agent_number": phone_number,
+        "agent_id": agent.get("id"),
+    }
+
+    try:
+        await redis_client.setex(
+            key,
+            AGENT_AUTH_CACHE_TTL_SECONDS,
+            json.dumps(cached_agent),
+        )
+        logger.info(f"Кэш авторизации агента сохранен для пользователя {telegram_id}")
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении кэша авторизации {telegram_id}: {e}")
+
+
 async def get_agent_by_phone(phone_number: str):
     logger.info(f"Получение агента по номеру телефона: {phone_number}")
 
@@ -73,17 +115,17 @@ async def get_agent_by_phone(phone_number: str):
     api_url = f"{os.getenv('WEB_SERVICE_URL')}/api/agent/{phone_number}"
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(api_url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    logger.info(f"Агент найден для номера {phone_number}: {data}")
-                    return data
-                else:
-                    logger.error(
-                        f"API запрос не удался со статусом {response.status} для номера {phone_number}"
-                    )
-                    return []
+        session = await get_http_session()
+        async with session.get(api_url) as response:
+            if response.status == 200:
+                data = await response.json()
+                logger.info(f"Агент найден для номера {phone_number}: {data}")
+                return data
+            else:
+                logger.error(
+                    f"API запрос не удался со статусом {response.status} для номера {phone_number}"
+                )
+                return []
     except Exception as e:
         logger.error(f"Ошибка в get_agent_by_phone для номера {phone_number}: {e}")
         return None
@@ -106,16 +148,16 @@ async def save_user_profile(telegram_id: int, phone_number: str) -> bool:
         logger.info(f"Данные пользователя сохранены в Redis: {user_data}")
 
         api_url = f"{os.getenv('WEB_SERVICE_URL')}/api/agent/{phone_number}"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(api_url) as response:
-                if response.status == 200:
-                    logger.info(f"Агент успешно подтвержден для номера {phone_number}")
-                    return True
-                else:
-                    logger.error(
-                        f"API запрос не удался со статусом {response.status} для номера {phone_number}"
-                    )
-                    return False
+        session = await get_http_session()
+        async with session.get(api_url) as response:
+            if response.status == 200:
+                logger.info(f"Агент успешно подтвержден для номера {phone_number}")
+                return True
+            else:
+                logger.error(
+                    f"API запрос не удался со статусом {response.status} для номера {phone_number}"
+                )
+                return False
 
     except Exception as e:
         logger.error(f"Ошибка при сохранении профиля пользователя {telegram_id}: {e}")
@@ -140,24 +182,24 @@ async def schedule(message: Message, state: FSMContext | None = None):
     logger.info(f"Запрос расписания по URL: {url}")
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 404:
-                    logger.warning(f"Агент с номером {phone_number} не найден")
-                    await message.answer(f"Агент с номером {phone_number} не найден.")
-                    return
+        session = await get_http_session()
+        async with session.get(url) as response:
+            if response.status == 404:
+                logger.warning(f"Агент с номером {phone_number} не найден")
+                await message.answer(f"Агент с номером {phone_number} не найден.")
+                return
 
-                if response.status != 200:
-                    logger.error(
-                        f"Ошибка при получении расписания: статус {response.status}"
-                    )
-                    await message.answer("Ошибка при получении расписания.")
-                    return
-
-                stores = await response.json()
-                logger.info(
-                    f"Получено расписание для агента {phone_number}: {len(stores)} магазинов"
+            if response.status != 200:
+                logger.error(
+                    f"Ошибка при получении расписания: статус {response.status}"
                 )
+                await message.answer("Ошибка при получении расписания.")
+                return
+
+            stores = await response.json()
+            logger.info(
+                f"Получено расписание для агента {phone_number}: {len(stores)} магазинов"
+            )
     except Exception as e:
         logger.error(f"Ошибка при запросе расписания для {phone_number}: {e}")
         await message.answer("Ошибка при получении расписания.")
@@ -207,23 +249,23 @@ async def check_coordinates(latitude, longitude, shop_name):
         url = f"{os.getenv('WEB_SERVICE_URL')}/api/check-address/{longitude}/{latitude}/{shop_name}/"
         logger.info(f"Запрос проверки координат: {url}")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    success = data.get("success", False)
-                    distance = data.get("distance")
+        session = await get_http_session()
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                success = data.get("success", False)
+                distance = data.get("distance")
 
-                    logger.info(
-                        f"Результат проверки координат: success={success}, distance={distance}"
-                    )
-                    return success
-                else:
-                    error_text = await response.text()
-                    logger.error(
-                        f"Ошибка проверки координат: статус {response.status}, ответ: {error_text}"
-                    )
-                    return False
+                logger.info(
+                    f"Результат проверки координат: success={success}, distance={distance}"
+                )
+                return success
+            else:
+                error_text = await response.text()
+                logger.error(
+                    f"Ошибка проверки координат: статус {response.status}, ответ: {error_text}"
+                )
+                return False
 
     except Exception as e:
         logger.error(f"Исключение при проверке координат: {e}")
@@ -363,16 +405,16 @@ async def download_file(file_url: str, filename: str):
 
         logger.info(f"Сохранение файла по пути: {save_path}")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(file_url) as response:
-                if response.status != 200:
-                    logger.error(f"Ошибка скачивания файла: статус {response.status}")
-                    raise Exception(f"Failed to download file: {response.status}")
+        session = await get_http_session()
+        async with session.get(file_url) as response:
+            if response.status != 200:
+                logger.error(f"Ошибка скачивания файла: статус {response.status}")
+                raise Exception(f"Failed to download file: {response.status}")
 
-                with open(save_path, "wb") as f:
-                    content = await response.read()
-                    f.write(content)
-                    logger.info(f"Файл успешно скачан, размер: {len(content)} байт")
+            with open(save_path, "wb") as f:
+                content = await response.read()
+                f.write(content)
+                logger.info(f"Файл успешно скачан, размер: {len(content)} байт")
 
         file_extension = os.path.splitext(filename.lower())[1]
         image_extensions = [".jpg", ".jpeg", ".png", ".heic", ".tiff", ".bmp"]
@@ -531,44 +573,42 @@ async def save_file_to_post(
         logger.info(f"Отправка файла: {file_path}")
         logger.info(f"Данные запроса: {data}")
 
-        async with aiohttp.ClientSession() as session:
-            with open(file_path, "rb") as image_file:
-                form_data = aiohttp.FormData()
-                for key, value in data.items():
-                    if value is not None:
-                        form_data.add_field(key, str(value))
+        session = await get_http_session()
+        with open(file_path, "rb") as image_file:
+            form_data = aiohttp.FormData()
+            for key, value in data.items():
+                if value is not None:
+                    form_data.add_field(key, str(value))
 
-                form_data.add_field(
-                    "image", image_file, filename=os.path.basename(file_path)
+            form_data.add_field(
+                "image", image_file, filename=os.path.basename(file_path)
+            )
+
+            async with session.post(api_url, data=form_data) as response:
+                response_text = await response.text()
+                logger.info(
+                    f"Ответ API: статус={response.status}, текст={response_text}"
                 )
 
-                async with session.post(api_url, data=form_data) as response:
-                    response_text = await response.text()
-                    logger.info(
-                        f"Ответ API: статус={response.status}, текст={response_text}"
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    logger.info(f"Удален временный файл: {file_path}")
+
+                if response.status == 201:
+                    logger.info("Файл успешно загружен в пост")
+                    return {
+                        "success": True,
+                        "data": json.loads(response_text) if response_text else None,
+                    }
+                else:
+                    logger.error(
+                        f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}"
                     )
-
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                        logger.info(f"Удален временный файл: {file_path}")
-
-                    if response.status == 201:
-                        logger.info("Файл успешно загружен в пост")
-                        return {
-                            "success": True,
-                            "data": json.loads(response_text)
-                            if response_text
-                            else None,
-                        }
-                    else:
-                        logger.error(
-                            f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}"
-                        )
-                        return {
-                            "success": False,
-                            "status": response.status,
-                            "error": response_text,
-                        }
+                    return {
+                        "success": False,
+                        "status": response.status,
+                        "error": response_text,
+                    }
 
     except Exception as e:
         logger.error(f"Ошибка в save_file_to_post: {e}")
@@ -609,30 +649,28 @@ async def save_post_data(
         data = {k: v for k, v in data.items() if v is not None}
         logger.info(f"Отправка данных (без None): {data}")
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                api_url, json=data, headers={"Content-Type": "application/json"}
-            ) as response:
-                response_text = await response.text()
-                logger.info(
-                    f"Ответ API: статус={response.status}, текст={response_text}"
-                )
+        session = await get_http_session()
+        async with session.post(
+            api_url, json=data, headers={"Content-Type": "application/json"}
+        ) as response:
+            response_text = await response.text()
+            logger.info(f"Ответ API: статус={response.status}, текст={response_text}")
 
-                if response.status == 201:
-                    logger.info("Данные поста успешно сохранены")
-                    return {
-                        "success": True,
-                        "data": json.loads(response_text) if response_text else None,
-                    }
-                else:
-                    logger.error(
-                        f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}"
-                    )
-                    return {
-                        "success": False,
-                        "status": response.status,
-                        "error": response_text,
-                    }
+            if response.status == 201:
+                logger.info("Данные поста успешно сохранены")
+                return {
+                    "success": True,
+                    "data": json.loads(response_text) if response_text else None,
+                }
+            else:
+                logger.error(
+                    f"Ошибка при создании поста. Статус: {response.status}, Ответ: {response_text}"
+                )
+                return {
+                    "success": False,
+                    "status": response.status,
+                    "error": response_text,
+                }
 
     except Exception as e:
         logger.error(f"Ошибка в save_post_data: {e}")

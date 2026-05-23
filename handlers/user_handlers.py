@@ -10,9 +10,11 @@ from aiogram.types import Message
 from fsms.fsm import UserState
 from handlers.constants import COMPETITOR_BRANDS, ORIMI_BRANDS, POST_TYPE_CHOICES
 from handlers.utils import (
+    cache_agent_auth,
     check_coordinates,
     download_file,
     get_agent_by_phone,
+    get_cached_agent_auth,
     get_store_id_by_name,
     get_user_profile,
     save_file_to_post,
@@ -50,10 +52,18 @@ async def check_auth(message: Message, state: FSMContext) -> bool:
         return False
 
     try:
-        agent = await get_agent_by_phone(user["agent_number"])
+        agent_number = user["agent_number"]
+        cached_agent = await get_cached_agent_auth(user_id, agent_number)
+        if cached_agent:
+            logger.info(
+                f"Авторизация подтверждена из кэша для пользователя {user_id}, агент: {cached_agent.get('agent_id', 'unknown')}"
+            )
+            return True
+
+        agent = await get_agent_by_phone(agent_number)
         if not agent:
             logger.warning(
-                f"Агент с номером {user['agent_number']} не найден для пользователя {user_id}"
+                f"Агент с номером {agent_number} не найден для пользователя {user_id}"
             )
             await message.answer(
                 "❌ Ваш номер не найден в системе. Обратитесь к администратору.",
@@ -62,6 +72,7 @@ async def check_auth(message: Message, state: FSMContext) -> bool:
             await state.set_state(UserState.unauthorized)
             return False
 
+        await cache_agent_auth(user_id, agent_number, agent)
         logger.info(
             f"Авторизация успешна для пользователя {user_id}, агент: {agent.get('id', 'unknown')}"
         )
@@ -203,6 +214,8 @@ async def handle_contact(message: Message, state: FSMContext):
             )
             return
 
+        agent_number = phone_number if phone_number.startswith("+") else f"+{phone_number}"
+        await cache_agent_auth(user_id, agent_number, agent)
         await state.update_data(phone=phone_number)
         logger.info(
             f"Профиль сохранен для пользователя {user_id} с номером {phone_number}"
