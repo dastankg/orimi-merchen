@@ -25,3 +25,4 @@ typing-extensions==4.14.1
 typing-inspection==0.4.1
 tzlocal==5.3.1
 yarl==1.20.1
+aiohttp-socks==0.11.0

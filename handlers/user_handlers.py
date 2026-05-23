@@ -680,9 +680,7 @@ async def handle_file(message: Message, bot: Bot, state: FSMContext):
             document.file_name or f"{uuid.uuid4().hex}{os.path.splitext(file_path)[1]}"
         )
 
-        file_url = (
-            f"https://api.telegram.org/file/bot{os.getenv('SECRET_KEY')}/{file_path}"
-        )
+        file_url = f"{os.getenv('PROXY_URL')}/file/bot{os.getenv('SECRET_KEY')}/{file_path}"
         logger.info(
             f"Обработка файла для пользователя {user_id}: {file_name}, размер: {document.file_size}"
         )
