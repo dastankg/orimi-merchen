@@ -1,7 +1,6 @@
 import os
 import uuid
 
-import aiohttp
 from aiogram import Bot, F, Router
 from aiogram.enums import ContentType
 from aiogram.filters import Command, CommandStart
@@ -188,25 +187,33 @@ async def handle_contact(message: Message, state: FSMContext):
 
     try:
         agent = await get_agent_by_phone(phone_number)
-        await save_user_profile(user_id, phone_number)
-        await state.update_data(phone=phone_number)
-        logger.info(
-            f"Профиль сохранен для пользователя {user_id} с номером {phone_number}"
-        )
-
-        if agent:
-            await state.set_state(UserState.authorized)
-            logger.info(f"Пользователь {user_id} успешно авторизован")
-            await message.answer(
-                "✅ Успешная авторизация!\n\nТеперь вы можете загружать фотографии.",
-                reply_markup=get_main_keyboard(),
-            )
-        else:
+        if not agent:
             logger.warning(f"Агент с номером {phone_number} не найден в системе")
             await message.answer(
                 "❌ Ваш номер не найден в нашей системе.\n"
                 "Обратитесь к администратору для регистрации вашего магазина."
             )
+            return
+
+        is_saved = await save_user_profile(user_id, phone_number)
+        if not is_saved:
+            logger.error(f"Не удалось сохранить профиль пользователя {user_id}")
+            await message.answer(
+                "Произошла ошибка при сохранении профиля. Пожалуйста, попробуйте позже."
+            )
+            return
+
+        await state.update_data(phone=phone_number)
+        logger.info(
+            f"Профиль сохранен для пользователя {user_id} с номером {phone_number}"
+        )
+
+        await state.set_state(UserState.authorized)
+        logger.info(f"Пользователь {user_id} успешно авторизован")
+        await message.answer(
+            "✅ Успешная авторизация!\n\nТеперь вы можете загружать фотографии.",
+            reply_markup=get_main_keyboard(),
+        )
     except Exception as e:
         logger.error(f"Ошибка при обработке контакта пользователя {user_id}: {e}")
         await message.answer(
@@ -234,7 +241,7 @@ async def handle_upload_photo(message: Message, state: FSMContext):
     logger.info(
         f"Пользователь {user_id} переведен в состояние ожидания названия магазина"
     )
-    await schedule(message)
+    await schedule(message, state)
 
 
 @router.message(F.text == "📷 Продолжить в этом магазине")
@@ -289,7 +296,7 @@ async def handle_choose_another_shop(message: Message, state: FSMContext):
     await state.set_state(UserState.waiting_for_shopName)
     await state.update_data(shop_name=None)
     logger.info(f"Пользователь {user_id} переведен в состояние выбора нового магазина")
-    await schedule(message)
+    await schedule(message, state)
 
 
 @router.message(UserState.waiting_for_shopName, F.text)
@@ -306,46 +313,27 @@ async def handle_shop_name(message: Message, state: FSMContext):
         await reset_to_main(message, state)
         return
 
-    try:
-        user = await get_user_profile(user_id)
-        phone_number = user["agent_number"]
-        if not phone_number.startswith("+"):
-            phone_number = f"+{phone_number}"
+    state_data = await state.get_data()
+    store_names = state_data.get("available_store_names")
 
-        url = f"{os.getenv('WEB_SERVICE_URL')}/api/agent-schedule/{phone_number}"
-        logger.info(f"Проверка доступных магазинов для пользователя {user_id}: {url}")
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                if response.status == 200:
-                    stores = await response.json()
-                    store_names = [store["name"] for store in stores] if stores else []
-                    logger.info(
-                        f"Доступные магазины для пользователя {user_id}: {store_names}"
-                    )
-
-                    if message.text not in store_names:
-                        logger.warning(
-                            f"Пользователь {user_id} выбрал недоступный магазин: {shop_name}"
-                        )
-                        await message.answer(
-                            "Пожалуйста, выберите магазин из списка кнопок ниже:",
-                            reply_markup=message.reply_markup,
-                        )
-                        return
-                else:
-                    logger.error(
-                        f"Ошибка при получении магазинов для пользователя {user_id}: статус {response.status}"
-                    )
-                    await reset_to_main(
-                        message, state, "Ошибка при получении списка магазинов."
-                    )
-                    return
-    except Exception as e:
-        logger.error(
-            f"Ошибка при проверке списка магазинов для пользователя {user_id}: {e}"
+    if store_names is None:
+        logger.warning(
+            f"Список доступных магазинов отсутствует в состоянии пользователя {user_id}"
         )
-        await reset_to_main(message, state, "Ошибка при проверке магазина.")
+        await message.answer("Список магазинов устарел. Обновляю расписание.")
+        await schedule(message, state)
+        return
+
+    logger.info(f"Доступные магазины для пользователя {user_id}: {store_names}")
+
+    if message.text not in store_names:
+        logger.warning(
+            f"Пользователь {user_id} выбрал недоступный магазин: {shop_name}"
+        )
+        await message.answer(
+            "Пожалуйста, выберите магазин из списка кнопок ниже:",
+            reply_markup=message.reply_markup,
+        )
         return
 
     await state.update_data(shop_name=shop_name)
@@ -410,7 +398,7 @@ async def back_from_location(message: Message, state: FSMContext):
     logger.info(f"Пользователь {user_id} возвращается назад из геолокации")
 
     await state.set_state(UserState.waiting_for_shopName)
-    await schedule(message)
+    await schedule(message, state)
 
 
 @router.message(UserState.waiting_for_type_photo, F.text)

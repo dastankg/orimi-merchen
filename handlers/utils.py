@@ -6,10 +6,12 @@ import subprocess
 import uuid
 from datetime import datetime, timedelta
 from typing import Any
+
 import aiohttp
 import piexif
 import pillow_heif
 import pytz
+from aiogram.fsm.context import FSMContext
 from aiogram.types import KeyboardButton, Message
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from asgiref.sync import sync_to_async
@@ -120,7 +122,7 @@ async def save_user_profile(telegram_id: int, phone_number: str) -> bool:
         return False
 
 
-async def schedule(message: Message):
+async def schedule(message: Message, state: FSMContext | None = None):
     logger.info(f"Получение расписания для пользователя: {message.from_user.id}")
 
     user = await get_user_profile(message.from_user.id)
@@ -161,6 +163,10 @@ async def schedule(message: Message):
         await message.answer("Ошибка при получении расписания.")
         return
 
+    store_names = [store["name"] for store in stores] if stores else []
+    if state:
+        await state.update_data(available_store_names=store_names)
+
     if not stores:
         weekdays = [
             "Понедельник",
@@ -179,8 +185,8 @@ async def schedule(message: Message):
         return
 
     builder = ReplyKeyboardBuilder()
-    for store in stores:
-        builder.add(KeyboardButton(text=store["name"]))
+    for store_name in store_names:
+        builder.add(KeyboardButton(text=store_name))
 
     builder.add(KeyboardButton(text="🔙 Назад"))
     builder.adjust(2)

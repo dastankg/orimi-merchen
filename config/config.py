@@ -25,13 +25,28 @@ class Config:
     redis: RedisConfig
 
 
+def _get_required_env(name: str) -> str:
+    value = os.getenv(name)
+    if value is None or value == "":
+        raise ValueError(f"Environment variable {name} is required")
+    return value
+
+
+def _get_required_int_env(name: str) -> int:
+    value = _get_required_env(name)
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"Environment variable {name} must be an integer") from exc
+
+
 def load_config() -> Config:
     return Config(
-        tg_bot=TgBot(token=os.getenv("SECRET_KEY")),
+        tg_bot=TgBot(token=_get_required_env("SECRET_KEY")),
         redis=RedisConfig(
-            redis_host=os.getenv("REDIS_HOST"),
-            redis_port=int(os.getenv("REDIS_PORT")),
-            redis_db=int(os.getenv("REDIS_DB")),
-            redis_password=os.getenv("REDIS_PASSWORD"),
+            redis_host=_get_required_env("REDIS_HOST"),
+            redis_port=_get_required_int_env("REDIS_PORT"),
+            redis_db=_get_required_int_env("REDIS_DB"),
+            redis_password=_get_required_env("REDIS_PASSWORD"),
         ),
     )

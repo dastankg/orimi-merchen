@@ -1,7 +1,10 @@
 import asyncio
+import os
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ParseMode
 
 from config.config import load_config
@@ -9,23 +12,19 @@ from handlers.user_handlers import router as user_router
 from keyboards.menu import set_menu
 from services.logger import logger
 from services.notifications import setup_scheduler
-from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.client.telegram import TelegramAPIServer
 
 config = load_config()
-custom_server = TelegramAPIServer.from_base(os.getenv('PROXY_URL'), is_local=True)
+custom_server = TelegramAPIServer.from_base(os.getenv("PROXY_URL"), is_local=True)
 session = AiohttpSession(api=custom_server)
 
 
 async def main():
     logger.info("Starting bot")
 
-
     bot = Bot(
         token=config.tg_bot.token,
         session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-
     )
     await set_menu(bot)
     dp = Dispatcher()
